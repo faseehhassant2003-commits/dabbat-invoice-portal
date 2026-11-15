@@ -8,7 +8,7 @@ const nav = [{ href: "/", label: "Overview", icon: LayoutDashboard }, { href: "/
 export function PortalShell({ children, demo }: { children: React.ReactNode; demo: boolean }) {
   const pathname = usePathname(); const [open, setOpen] = useState(false);
   return <div className="portal"><aside className={`sidebar ${open ? "is-open" : ""}`}>
-    <Link href="/" className="brand" aria-label="Dabbat home"><Image src="/brand/dabbat-wordmark.png" width={134} height={34} alt="dabbat" priority /><span>INVOICE PORTAL</span></Link>
+    <Link href="/" className="brand" aria-label="Dabbat home"><Image src="/brand/dabbat-wordmark.png" width={134} height={34} style={{ width: 134, height: "auto" }} alt="dabbat" priority /><span>INVOICE PORTAL</span></Link>
     <button className="mobile-close icon-button" aria-label="Close navigation" onClick={() => setOpen(false)}><X size={20}/></button>
     <div className="store-switch"><div className="store-monogram">d.</div><div><strong>Dabbat</strong><span>dabbat.in</span></div><ChevronDown size={15}/></div>
     <p className="nav-label">WORKSPACE</p><nav>{nav.map(({href,label,icon:Icon}) => <Link onClick={()=>setOpen(false)} key={href} href={href} className={`nav-link ${(href === "/" ? pathname === href : pathname.startsWith(href)) ? "active" : ""}`}><Icon size={18}/><span>{label}</span></Link>)}</nav>

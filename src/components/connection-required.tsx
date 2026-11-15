@@ -1,0 +1,3 @@
+import Link from "next/link";
+import { ArrowUpRight, LockKeyhole } from "lucide-react";
+export function ConnectionRequired({ customerAccess = false }: { customerAccess?: boolean }) { return <section className="panel connection-required"><div className="invoice-card-icon"><LockKeyhole size={23}/></div><h2>{customerAccess ? "Customer data access is needed." : "Let’s connect your order book."}</h2><p>{customerAccess ? "Confirm the app’s approved access to customer billing details before loading real orders or invoices." : "Your private workspace is ready. Connect the Dabbat invoice app in Settings to securely load your store’s orders."}</p><Link className="button primary" href="/settings">Open settings <ArrowUpRight size={15}/></Link></section>; }

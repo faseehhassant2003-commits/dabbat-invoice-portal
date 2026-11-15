@@ -8,6 +8,7 @@ import { sendGmailInvoice } from "./gmail-api";
 import { readPrivateStore, updatePrivateStore, type EmailDeliveryRecord } from "./storage";
 import { buildInvoiceEmail } from "@/lib/invoice-email";
 import { getEmailLogo } from "./email-brand";
+import { orderEmailIndicators } from "@/lib/order-email-status";
 
 export class InvoiceEmailSetupError extends Error {}
 export class InvoiceEmailRecipientError extends Error {}
@@ -15,6 +16,12 @@ export class InvoiceEmailDeliveryError extends Error {}
 export class InvoiceEmailNotFoundError extends Error {}
 export class InvoiceEmailUnavailableError extends Error {}
 export class InvoiceEmailPendingError extends Error {}
+
+export async function getOrderEmailIndicators(orderIds: string[]) {
+  if (isDemoMode()) return orderEmailIndicators(orderIds, []);
+  await requireApiSession();
+  return orderEmailIndicators(orderIds, (await readPrivateStore()).emailDeliveries ?? []);
+}
 
 function gmailConfig() {
   const user = process.env.GMAIL_USER?.trim();

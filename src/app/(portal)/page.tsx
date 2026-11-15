@@ -1,6 +1,5 @@
-import Image from "next/image";
-import Link from "next/link";
-import { ArrowDownToLine, ArrowRight, ArrowUpRight, Clock3, FileCheck2, FileText, ShoppingBag, Sparkles } from "lucide-react";
+﻿import Link from "next/link";
+import { ArrowDownToLine, ArrowRight, ArrowUpRight, Clock3, FileCheck2, FileText, ShoppingBag, Wallet, Settings2, Mail } from "lucide-react";
 import { listOrders } from "@/lib/server/orders";
 import { listInvoices } from "@/lib/server/invoices";
 import { getIntegrationStatus, isDemoMode } from "@/lib/server/config";
@@ -8,16 +7,38 @@ import { ConnectionRequired } from "@/components/connection-required";
 import { money, date } from "@/lib/format";
 import { EmptyState, OrderTable, PageHeading } from "@/components/ui";
 import { getOrderEmailIndicators } from "@/lib/server/email";
+
 export default async function Dashboard() {
-  if (!isDemoMode()) { const status = await getIntegrationStatus(); if (!status.connected || process.env.SHOPIFY_CUSTOMER_DATA_APPROVED !== "true") return <><PageHeading eyebrow="YOUR PRIVATE WORKSPACE" title="Welcome to Dabbat." description="A few final details, then you’re ready for your first invoice."/><ConnectionRequired customerAccess={status.connected}/></>; }
-  const [orders,invoices] = await Promise.all([listOrders(),listInvoices()]);
-  const orderEmails = await getOrderEmailIndicators(orders.slice(0, 5).map(order => order.id));
-  const demo = isDemoMode(); const pending = orders.filter(x=>x.paymentStatus==="pending").length;
+  const demo = isDemoMode();
+  if (!demo) {
+    const status = await getIntegrationStatus();
+    if (!status.connected || process.env.SHOPIFY_CUSTOMER_DATA_APPROVED !== "true") {
+      return <><PageHeading eyebrow="WORKSPACE OVERVIEW" title="Welcome to Dabbat" description="Connect your store to bring orders and invoices together."/><ConnectionRequired customerAccess={status.connected}/></>;
+    }
+  }
+  const [orders, invoices] = await Promise.all([listOrders(), listInvoices()]);
+  const recent = orders.slice(0, 5);
+  const orderEmails = await getOrderEmailIndicators(recent.map(order => order.id));
+  const pending = orders.filter(order => order.paymentStatus === "pending" || order.paymentStatus === "partially_paid").length;
+  const currencies = [...new Set(orders.map(order => order.currency))];
+  const orderValue = currencies.length > 1 ? "Multiple currencies" : money(orders.reduce((sum, order) => sum + order.total, 0), currencies[0] ?? "INR");
+  const paid = orders.filter(order => order.paymentStatus === "paid").length;
   const latest = invoices[0];
-  return <><PageHeading eyebrow="YOUR DAILY OVERVIEW" title="Your orders, all in order." description="A little less paperwork. A little more time for Dabbat." action={<Link className="button primary" href="/orders"><FileText size={16}/>Create an invoice<ArrowUpRight size={15}/></Link>}/>
-  <div className="welcome-card"><div className="welcome-copy"><span className="overline"><span className="tiny-dot"/>{demo ? "A PREVIEW OF YOUR WORKSPACE" : "THE DABBAT WORKSPACE"}</span><h2>Good clothes.<br/>Great attention to detail.</h2><p>From the first order to the final invoice,<br className="desktop-break"/> keep every detail beautifully in place.</p><Link href="/orders" className="text-link">Let’s get started <ArrowRight size={16}/></Link></div><div className="welcome-art"><span className="art-ring ring-one"/><span className="art-ring ring-two"/><Image src="/brand/dabbat-icon.png" width={135} height={213} alt="Dabbat’s floral goat emblem" priority/><span className="art-caption">INDIVIDUALLY YOU.</span></div><div className="welcome-note"><Sparkles size={15}/><span>Thoughtfully made.<br/>Simply managed.</span></div></div>
-  <div className="stats-grid"><div className="stat-card"><div className="stat-top"><span>Recent orders</span><div className="stat-icon blue"><ShoppingBag size={18}/></div></div><div className="stat-number">{orders.length.toString().padStart(2,"0")}<span className="stat-tag">{demo ? "Sample orders" : "Latest 20"}</span></div><p>All your latest orders, in one place</p></div><div className="stat-card"><div className="stat-top"><span>Invoices created</span><div className="stat-icon green"><FileCheck2 size={18}/></div></div><div className="stat-number">{invoices.length.toString().padStart(2,"0")}<Link href="/invoices" className="stat-detail">View history <ArrowUpRight size={13}/></Link></div><p>Ready whenever you need them</p></div><div className="stat-card"><div className="stat-top"><span>Awaiting payment</span><div className="stat-icon amber"><Clock3 size={18}/></div></div><div className="stat-number">{pending.toString().padStart(2,"0")}<span className="stat-tag warm">{demo ? "Includes sample COD" : "In recent orders"}</span></div><p>Payment status stays true to the order</p></div></div>
-  <div className="dashboard-grid"><section className="panel orders-panel"><div className="panel-heading"><div><h2>Recent orders</h2><p>The latest arrivals in your order book.</p></div><Link className="text-link subtle" href="/orders">View all <ArrowRight size={15}/></Link></div>{orders.length ? <OrderTable orders={orders.slice(0,5)} emailIndicators={orderEmails}/> : <EmptyState title="Your order book is ready" description="Connect Shopify in Settings to securely load recent orders."/>}<div className="panel-foot"><span><span className="tiny-dot"/>{demo ? "Showing fictional sample orders" : "Read-only Shopify order access"}</span><span>{Math.min(5,orders.length)} of {orders.length} orders</span></div></section>
-  <aside className="invoice-studio"><div className="studio-heading"><span className="overline">THE FINISHING TOUCH</span><FileText size={18}/></div><h2>A proper invoice.<br/>A lasting impression.</h2><p>Clean, branded A4 invoices that feel like Dabbat.</p><div className="mini-invoice" aria-label="Sample invoice layout"><div className="mini-top"><Image src="/brand/dabbat-wordmark.png" width={73} height={18} alt="dabbat"/><span>INVOICE</span></div><div className="mini-rule"/><div className="mini-meta"><div><b>{latest?.number ?? "YOUR NEXT INVOICE"}</b><span>{latest ? date(latest.createdAt,true) : "A4 · Branded PDF"}</span></div><span className="mini-sample">{demo ? "SAMPLE" : "PREVIEW"}</span></div><div className="mini-line"><span>Thoughtfully chosen essentials</span><span>01</span></div><div className="skeleton-line"/><div className="skeleton-line short"/><div className="mini-total"><span>Total</span><b>{latest ? money(latest.total,latest.currency) : "—"}</b></div><div className="mini-footer">THANK YOU FOR CHOOSING DABBAT.</div></div><Link href={latest ? `/api/invoices/${encodeURIComponent(latest.id)}/pdf` : "/orders"} className="button studio-button">{latest ? <ArrowDownToLine size={16}/> : <FileText size={16}/>} {latest ? "Download latest invoice" : "Create your first invoice"}</Link><span className="studio-caption">A4 format <span>·</span> Ready to download</span></aside></div>
-  <div className="quiet-note"><div className="quiet-icon"><FileText size={19}/></div><div><strong>Less admin. More creating.</strong><p>Select an order, review the details, and your invoice is ready.</p></div><Link href="/orders" className="text-link">Find an order <ArrowRight size={15}/></Link></div></>;
+  const metrics = [
+    { label: "Order value", value: orderValue, icon: Wallet, tone: "blue", detail: "Total value of loaded orders" },
+    { label: "Recent orders", value: String(orders.length), icon: ShoppingBag, tone: "blue", detail: `${paid} paid orders` },
+    { label: "Invoices created", value: String(invoices.length), icon: FileCheck2, tone: "green", detail: "Saved in your invoice history" },
+    { label: "Awaiting payment", value: String(pending), icon: Clock3, tone: "amber", detail: "Pending and partially paid orders" },
+  ];
+  return <div className="dashboard-overview">
+    <PageHeading eyebrow="WORKSPACE OVERVIEW" title="Business, beautifully organised." description="A clear view of your orders, invoices, and what needs attention." action={<Link className="button primary" href="/orders"><FileText size={16}/>Create invoice<ArrowUpRight size={15}/></Link>}/>
+    <div className="overview-context"><span><span className="tiny-dot"/>{demo ? "Sample workspace" : "Your store workspace"}</span><span>Based on {orders.length} loaded orders · Not a lifetime sales report</span></div>
+    <div className="stats-grid">{metrics.map(({label,value,icon:Icon,tone,detail}) => <div className="stat-card" key={label}><div className="stat-top"><span>{label}</span><div className={`stat-icon ${tone}`}><Icon size={19}/></div></div><div className="stat-number">{value}</div><p>{detail}</p></div>)}</div>
+    <div className="dashboard-grid">
+      <section className="panel orders-panel"><div className="panel-heading"><div><span className="section-kicker">ORDER ACTIVITY</span><h2>Recent orders <span className="count-badge">{orders.length}</span></h2><p>Your latest orders, ready for the next step.</p></div><Link className="button secondary" href="/orders">View all orders<ArrowRight size={15}/></Link></div>{recent.length ? <OrderTable orders={recent} emailIndicators={orderEmails}/> : <EmptyState title="Your orders will appear here" description="Connect your store to manage orders and create invoices."/>}<div className="panel-foot"><span>Payment and email status at a glance</span><span>Showing {recent.length} of {orders.length}</span></div></section>
+      <aside className="dashboard-aside"><section className="panel quick-actions"><div className="panel-heading"><div><span className="section-kicker">YOUR WORKSPACE</span><h2>Quick actions</h2></div><Settings2 size={18}/></div><Link href="/orders" className="quick-action"><span className="action-icon"><FileText size={19}/></span><span><strong>Create an invoice</strong><small>Select an order to get started</small></span><ArrowUpRight size={17}/></Link><Link href="/invoices" className="quick-action"><span className="action-icon"><ArrowDownToLine size={19}/></span><span><strong>Invoice history</strong><small>Find and download saved PDFs</small></span><ArrowUpRight size={17}/></Link><Link href="/settings" className="quick-action"><span className="action-icon"><Mail size={19}/></span><span><strong>Email & integrations</strong><small>Manage your store connections</small></span><ArrowUpRight size={17}/></Link></section>
+      <section className="latest-invoice-card"><span className="section-kicker">LATEST INVOICE</span><div className="latest-invoice-icon"><FileCheck2 size={24}/></div><h2>{latest?.number ?? "Ready when you are"}</h2><p>{latest ? `${latest.customer} · ${date(latest.createdAt, true)}` : "Turn your next order into a professional, branded invoice."}</p>{latest && <strong className="latest-invoice-total">{money(latest.total, latest.currency)}</strong>}<Link href={latest ? `/api/invoices/${encodeURIComponent(latest.id)}/pdf` : "/orders"} className="button secondary">{latest ? <ArrowDownToLine size={16}/> : <FileText size={16}/>} {latest ? "Download invoice" : "Find an order"}</Link><span className="latest-caption">Dabbat branded · A4 PDF</span></section></aside>
+    </div>
+    <div className="workspace-note"><span className="action-icon"><FileCheck2 size={20}/></span><div><strong>Every detail, in one place.</strong><p>Open an order to review its details, create an invoice, and send it to your customer.</p></div><Link href="/orders" className="text-link">Manage orders<ArrowRight size={15}/></Link></div>
+  </div>;
 }

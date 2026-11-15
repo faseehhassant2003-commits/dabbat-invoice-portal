@@ -5,6 +5,7 @@ import { emailSavedInvoice } from "@/lib/server/email";
 import { getOrderForWebhook } from "@/lib/server/orders";
 import { validShopifyWebhookHmac } from "@/lib/server/security";
 import { updatePrivateStore } from "@/lib/server/storage";
+import { claimWebhookEvent } from "@/lib/integration-reliability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,12 +75,11 @@ export async function POST(request: Request) {
 
   const claimed = await updatePrivateStore((store) => {
     const events = store.shopifyWebhooks ?? [];
-    if (events.some((event) => event.id === webhookId)) return false;
-    events.push({ id: webhookId, topic, orderId, receivedAt: Date.now(), status: "processing" });
+    const result = claimWebhookEvent(events, { id: webhookId, topic, orderId, receivedAt: Date.now() });
     store.shopifyWebhooks = events.slice(-5000);
-    return true;
+    return result;
   });
-  if (!claimed) return NextResponse.json({ received: true, duplicate: true }, { headers });
+  if (claimed === null) return NextResponse.json({ received: true, duplicate: true }, { headers });
 
   if (process.env.GMAIL_AUTO_SEND_ENABLED !== "true") {
     await finishWebhook(webhookId, "ignored");
@@ -98,7 +98,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true, eligible: false }, { headers });
     }
     const invoice = await createInvoiceForWebhook(order);
-    await emailSavedInvoice(invoice.id, `shopify-${webhookId}`, false, true, "gmail-api");
+    const requestId = claimed === "retry" ? `shopify-${webhookId}-${Date.now().toString(36)}` : `shopify-${webhookId}`;
+    await emailSavedInvoice(invoice.id, requestId, false, true, "gmail-api");
     await finishWebhook(webhookId, "processed");
     return NextResponse.json({ received: true, processed: true }, { headers });
   } catch {

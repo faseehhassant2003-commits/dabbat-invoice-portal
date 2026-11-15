@@ -8,4 +8,73 @@ import { getGoogleMailStatus } from "@/lib/server/google-oauth";
 import { getAppOrigin } from "@/lib/server/config";
 import { GoogleMailSettings } from "@/components/google-mail-settings";
 export const metadata = {title:"Settings"};
-export default async function Settings(){const status=await getIntegrationStatus();const [gstSettings,gmail]=await Promise.all([getGstSettings(),status.mode==="demo"?Promise.resolve({configured:false,connected:false,testPassed:false}):getGoogleMailStatus()]);return <><PageHeading eyebrow="BEHIND THE DETAILS" title="Workspace settings" description="Your brand, your store, your private invoice workspace."/><div className="settings-grid"><div><section className="panel settings-card"><div className="card-title"><Store size={18}/><h2>Your brand</h2></div><div className="brand-settings"><Image src="/brand/dabbat-icon.png" width={58} height={92} alt="Dabbat emblem"/><div><Image src="/brand/dabbat-wordmark.png" width={125} height={32} alt="dabbat"/><p>Individually you.</p></div></div><dl className="settings-list"><div><dt>Store name</dt><dd>Dabbat</dd></div><div><dt>Website</dt><dd><a href="https://dabbat.in" target="_blank" rel="noreferrer">dabbat.in <ExternalLink size={12}/></a></dd></div><div><dt>Business email</dt><dd>support@dabbat.in</dd></div><div><dt>Invoice format</dt><dd>A4 · PDF</dd></div></dl><p className="settings-footnote">Your actual seller address must be added before issuing live invoices. GST stays off until you enable it after registration.</p></section><GstSettingsForm initialSettings={gstSettings} demo={status.mode === "demo"}/><GoogleMailSettings demo={status.mode==="demo"} configured={gmail.configured} connected={gmail.connected} testPassed={gmail.testPassed} redirectUri={`${getAppOrigin()}/api/google/callback`}/></div><div><section className="panel settings-card"><div className="card-title"><Link2 size={18}/><h2>Shopify connection</h2><span className={`status-badge ${status.connected?"paid":"pending"}`}><span/>{status.connected?"Connected":"Not connected"}</span></div><div className="connection-summary"><span className="shopify-letter">S</span><div><strong>Dabbat invoice</strong><p>{status.shop ?? "Your Dabbat Shopify store"}</p></div></div><p className="settings-description">{status.mode==="demo"?"You’re in the sample workspace. A secure connection must be configured before this portal can read real orders.":status.connected?"Your store is securely connected. Order access is read-only.":"Your private workspace is ready for authorization. Connect the existing app to allow read-only access to orders."}</p><div className="permission-list"><span><Check size={14}/>Read orders</span><span><Check size={14}/>Read products</span><span><ShieldCheck size={14}/>Your live store stays unchanged</span></div><form action="/api/shopify/install" method="post"><button className="button primary" disabled={status.mode==="demo"||!status.configured}><Link2 size={16}/>{status.connected?"Reconnect Shopify":"Connect Shopify"}</button></form>{status.mode==="demo"&&<p className="action-caption">Connection is available after secure setup and administrator sign-in.</p>}<div className="connection-version"><span>Admin API</span><strong>2026-10</strong></div></section><section className="privacy-card"><LockKeyhole size={22}/><div><h3>Private by design.</h3><p>Store credentials stay on the server. Live orders require administrator sign-in and approved customer data access.</p></div></section></div></div></>;}
+export default async function Settings({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string | string[] }>;
+}) {
+  const { google } = await searchParams;
+  const authorizationResult = google === "connected" || google === "error" ? google : null;
+  const status = await getIntegrationStatus();
+  const [gstSettings, gmail] = await Promise.all([
+    getGstSettings(),
+    status.mode === "demo"
+      ? Promise.resolve({ configured: false, connected: false, testPassed: false })
+      : getGoogleMailStatus(),
+  ]);
+
+  return <>
+    <PageHeading eyebrow="BEHIND THE DETAILS" title="Workspace settings" description="Your brand, your store, your private invoice workspace."/>
+    <div className="settings-grid">
+      <div>
+        <section className="panel settings-card">
+          <div className="card-title"><Store size={18}/><h2>Your brand</h2></div>
+          <div className="brand-settings">
+            <Image src="/brand/dabbat-icon.png" width={58} height={92} alt="Dabbat emblem"/>
+            <div><Image src="/brand/dabbat-wordmark.png" width={125} height={32} alt="dabbat"/><p>Individually you.</p></div>
+          </div>
+          <dl className="settings-list">
+            <div><dt>Store name</dt><dd>Dabbat</dd></div>
+            <div><dt>Website</dt><dd><a href="https://dabbat.in" target="_blank" rel="noreferrer">dabbat.in <ExternalLink size={12}/></a></dd></div>
+            <div><dt>Business email</dt><dd>support@dabbat.in</dd></div>
+            <div><dt>Invoice format</dt><dd>A4 · PDF</dd></div>
+          </dl>
+          <p className="settings-footnote">Your actual seller address must be added before issuing live invoices. GST stays off until you enable it after registration.</p>
+        </section>
+        <GstSettingsForm initialSettings={gstSettings} demo={status.mode === "demo"}/>
+        <GoogleMailSettings
+          demo={status.mode === "demo"}
+          configured={gmail.configured}
+          connected={gmail.connected}
+          testPassed={gmail.testPassed}
+          redirectUri={`${getAppOrigin()}/api/google/callback`}
+          authorizationResult={authorizationResult}
+        />
+      </div>
+      <div>
+        <section className="panel settings-card">
+          <div className="card-title"><Link2 size={18}/><h2>Shopify connection</h2><span className={`status-badge ${status.connected ? "paid" : "pending"}`}><span/>{status.connected ? "Connected" : "Not connected"}</span></div>
+          <div className="connection-summary">
+            <span className="shopify-letter">S</span>
+            <div><strong>Dabbat invoice</strong><p>{status.shop ?? "Your Dabbat Shopify store"}</p></div>
+          </div>
+          <p className="settings-description">{status.mode === "demo" ? "You’re in the sample workspace. A secure connection must be configured before this portal can read real orders." : status.connected ? "Your store is securely connected. Order access is read-only." : "Your private workspace is ready for authorization. Connect the existing app to allow read-only access to orders."}</p>
+          <div className="permission-list">
+            <span><Check size={14}/>Read orders</span>
+            <span><Check size={14}/>Read products</span>
+            <span><ShieldCheck size={14}/>Your live store stays unchanged</span>
+          </div>
+          <form action="/api/shopify/install" method="post">
+            <button className="button primary" disabled={status.mode === "demo" || !status.configured}><Link2 size={16}/>{status.connected ? "Reconnect Shopify" : "Connect Shopify"}</button>
+          </form>
+          {status.mode === "demo" && <p className="action-caption">Connection is available after secure setup and administrator sign-in.</p>}
+          <div className="connection-version"><span>Admin API</span><strong>2026-10</strong></div>
+        </section>
+        <section className="privacy-card">
+          <LockKeyhole size={22}/>
+          <div><h3>Private by design.</h3><p>Store credentials stay on the server. Live orders require administrator sign-in and approved customer data access.</p></div>
+        </section>
+      </div>
+    </div>
+  </>;
+}

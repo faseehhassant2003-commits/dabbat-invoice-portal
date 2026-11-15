@@ -89,7 +89,7 @@ export async function emailSavedInvoice(
   if (!validRecipient(recipient)) throw new InvoiceEmailRecipientError("This invoice has no valid customer email address in its saved order details.");
 
   const store = await readPrivateStore();
-  const provider = providerOverride ?? process.env.INVOICE_EMAIL_PROVIDER?.trim() ?? "smtp";
+  const provider = providerOverride ?? process.env.INVOICE_EMAIL_PROVIDER?.trim() ?? "gmail-api";
   if (provider !== "smtp" && provider !== "gmail-api") throw new InvoiceEmailSetupError("INVOICE_EMAIL_PROVIDER must be smtp or gmail-api.");
 
   const claimed = await updatePrivateStore((current) => {

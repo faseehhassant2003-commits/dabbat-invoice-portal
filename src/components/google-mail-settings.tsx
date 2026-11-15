@@ -8,13 +8,23 @@ type Props = {
   connected: boolean;
   testPassed: boolean;
   redirectUri: string;
+  authorizationResult: "connected" | "error" | null;
 };
 
-export function GoogleMailSettings({ demo, configured, connected, testPassed: initialTestPassed, redirectUri }: Props) {
+export function GoogleMailSettings({ demo, configured, connected, testPassed: initialTestPassed, redirectUri, authorizationResult }: Props) {
   const [testPassed, setTestPassed] = useState(initialTestPassed);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  const authorizationNotice = authorizationResult === "connected" && connected
+    ? "Google Workspace Gmail connected. No email was sent."
+    : "";
+  const authorizationError = authorizationResult === "error"
+    ? "Google Workspace authorization did not complete. Check the OAuth credentials, exact redirect URI, and Gmail send permission, then try again."
+    : authorizationResult === "connected" && !connected
+      ? "Google authorization returned, but Gmail is not connected. Reconnect Google Workspace and approve Gmail send access."
+      : "";
 
   async function testConnection() {
     if (testing || demo || !connected) return;
@@ -43,7 +53,7 @@ export function GoogleMailSettings({ demo, configured, connected, testPassed: in
       <div><dt>Send-as alias</dt><dd>support@dabbat.in</dd></div>
       <div><dt>Authorized redirect URI</dt><dd><code>{redirectUri}</code></dd></div>
     </dl>
-    <p className="settings-footnote">In Google Workspace, verify support@dabbat.in as a send-as alias on official@dabbat.in before connecting. Google’s login hint does not force the account: check the account shown during consent. Keep invoice provider on SMTP until the internal test succeeds.</p>
+    <p className="settings-footnote">In Google Workspace, verify support@dabbat.in as a send-as alias on official@dabbat.in before connecting. Google’s login hint does not force the account: check the account shown during consent. {testPassed ? "The Gmail API test passed; manual invoice emails can now use OAuth. Automatic sending remains off." : "Run the internal test before enabling Gmail API invoice sends."}</p>
     <form action="/api/google/connect" method="post"><button className="button primary" disabled={demo || !configured}><ExternalLink size={16}/>{connected ? "Reconnect Google Workspace" : "Connect Google Workspace"}</button></form>
     {!configured && !demo && <p className="action-caption">Add GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET to the server environment first.</p>}
     {demo && <p className="action-caption">Google email is disabled in sample mode.</p>}
@@ -51,7 +61,7 @@ export function GoogleMailSettings({ demo, configured, connected, testPassed: in
       {testing ? <Loader2 size={16} className="spin"/> : testPassed ? <Check size={16}/> : <ShieldCheck size={16}/>}
       {testing ? "Sending internal test…" : testPassed ? "Run test again" : "Send internal test"}
     </button>
-    {notice && <p className="success-text" role="status">{notice}</p>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {(notice || authorizationNotice) && <p className="success-text" role="status">{notice || authorizationNotice}</p>}
+    {(error || authorizationError) && <p className="form-error" role="alert">{error || authorizationError}</p>}
   </section>;
 }

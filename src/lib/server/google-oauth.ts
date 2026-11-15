@@ -6,6 +6,7 @@ import { requireApiSession } from "./auth";
 import { getAppOrigin, getAuthConfig, isDemoMode } from "./config";
 import { equalSecret, signValue, verifyValue } from "./security";
 import { readPrivateStore, updatePrivateStore, type GoogleMailToken } from "./storage";
+import { googleRefreshFailureInvalidatesConnection } from "@/lib/integration-reliability";
 
 export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 export const GMAIL_OAUTH_ACCOUNT = "official@dabbat.in";
@@ -168,8 +169,11 @@ export async function getGmailAccessToken(): Promise<string> {
       throw new GoogleOAuthFlowError("Could not refresh Google authorization. Try again or reconnect Gmail.");
     }
     if (!response.ok) {
-      await updatePrivateStore((store) => { if (store.googleMail?.refreshToken === current.refreshToken) delete store.googleMail; });
-      throw new GoogleOAuthFlowError("Google authorization expired or was revoked. Reconnect Gmail in Settings.");
+      if (googleRefreshFailureInvalidatesConnection(response.status)) {
+        await updatePrivateStore((store) => { if (store.googleMail?.refreshToken === current.refreshToken) delete store.googleMail; });
+        throw new GoogleOAuthFlowError("Google authorization expired or was revoked. Reconnect Gmail in Settings.");
+      }
+      throw new GoogleOAuthFlowError("Google could not refresh authorization. Try again later; the saved connection was preserved.");
     }
     const raw = await response.json() as GoogleTokenResponse;
     const accessToken = typeof raw.access_token === "string" ? raw.access_token : "";

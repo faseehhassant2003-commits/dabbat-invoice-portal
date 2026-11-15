@@ -36,17 +36,17 @@ Set values privately in `.env.local` or your hosting secret manager. Restart Nex
 | `ADMIN_PASSWORD_HASH` | Generate with `npm run password:hash`; do not store the plain password. |
 | `SESSION_SECRET` | Independent cryptographically random secret, at least 64 characters. |
 | `TOKEN_ENCRYPTION_KEY` | Independent 32-byte random encryption key encoded as 64 hexadecimal characters. |
+| `DATABASE_URL` | Neon pooled PostgreSQL URL. Required on Vercel; enables transactional shared storage for live mode. |
 | `SHOPIFY_CLIENT_ID` | Client ID of the existing Dabbat invoice app. |
 | `SHOPIFY_CLIENT_SECRET` | That app’s Client secret. |
 | `SHOPIFY_SHOP_DOMAIN` | The store’s permanent `your-store.myshopify.com` domain, **not** `dabbat.in`. |
 | `SHOPIFY_API_VERSION` | `2026-10`, the version validated for this implementation. |
 | `SHOPIFY_SCOPES` | Exactly `read_orders,read_products`. |
 | `SHOPIFY_CUSTOMER_DATA_APPROVED` | Keep `false` until the app has the required protected customer data access. `true` is a local gate, not Shopify approval. |
-| `DATA_DIR` | Private durable storage directory, default `data`. Outside `public/`; never commit it or serve it over HTTP. |
+| `DATA_DIR` | Local/demo data directory and live-mode fallback outside Vercel. PostgreSQL replaces live file storage when `DATABASE_URL` is set. |
 | `SELLER_NAME`, `SELLER_EMAIL` | Real seller name/email. Defaults: Dabbat and support@dabbat.in. |
 | `SELLER_ADDRESS` | Required actual business address; separate lines with `|`. |
-| `GMAIL_USER` | Google Workspace inbox used as the invoice sender. |
-| `GMAIL_APP_PASSWORD` | App Password for that inbox. Keep it server-side; never use the normal account password. |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Optional legacy SMTP fallback only. Gmail API uses OAuth and does not require these. |
 | GST registration | Disabled by default. Configure it in Settings after registration; no GSTIN is required now. |
 
 ### Gmail API invoice delivery
@@ -65,17 +65,27 @@ Add these values to `.env.local` for local work, or to the hosting provider’s 
 | --- | --- |
 | `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth Web Application client ID. |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth Web Application client secret. |
-| `INVOICE_EMAIL_PROVIDER` | Keep `smtp` until the internal API test succeeds. Then set to `gmail-api` to use OAuth for manual invoices. |
+| `INVOICE_EMAIL_PROVIDER` | Defaults to `gmail-api` for OAuth invoice delivery. Set to `smtp` only to intentionally use the legacy fallback. |
 | `GMAIL_AUTO_SEND_ENABLED` | Must remain `false` during testing. Automatic sending is only activated by explicitly setting `true`. |
-| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Existing SMTP fallback credentials; keep intact until Gmail API testing succeeds. These are not used by Gmail API. |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` | Optional legacy SMTP fallback credentials. These are not used by Gmail API. |
 
-Restart the app after editing local environment values. Sign in, open **Settings → Email invoices → Connect Google Workspace**, and verify the consent screen shows `official@dabbat.in`. The `login_hint` is not an account lock, so choose the correct Workspace account yourself. Before connecting, configure and verify `support@dabbat.in` as a Gmail “Send mail as” alias on that account. The portal sends as the alias and cannot check alias configuration with the send-only scope.
+Restart the app after editing local environment values. Sign in, open **Settings → Email invoices → Connect Google Workspace**, and verify the consent screen shows `official@dabbat.in`. The `login_hint` is not an account lock, so choose the correct Workspace account yourself. Configure `support@dabbat.in` as a Gmail “Send mail as” alias on that account; the send-only scope cannot list aliases, but the internal test verifies that Gmail accepts mail from the alias.
 
-Use **Send internal test** only after connecting. It sends a sample-marked PDF only to `official@dabbat.in`; it does not contact a customer. After it succeeds, you may set `INVOICE_EMAIL_PROVIDER=gmail-api` to switch manual sends. On a live order, **Email invoice** sends the saved PDF to the saved order email after confirmation. The order page shows Pending, Sent, or Failed, blocks duplicate attempts, and offers explicit resend. Gmail cannot guarantee idempotency if a network failure happens after accepting a message; check the sender mailbox before resending a failed/ambiguous delivery.
+Use **Send internal test** only after connecting. It sends a sample-marked PDF only to `official@dabbat.in`; it does not contact a customer. Once it succeeds, manual invoice sends use Gmail API by default. On a live order, **Email invoice** sends the existing saved PDF to the saved order email only after confirmation. The order page shows Pending, Sent, or Failed, blocks duplicate attempts, and offers explicit resend. Gmail cannot guarantee idempotency if a network failure happens after accepting a message; check the sender mailbox before resending a failed/ambiguous delivery.
 
 Shopify automatic sending is off by default. The verified webhook endpoint is `{APP_URL}/api/shopify/webhooks`; subscribe it to `orders/create` and `orders/paid` in the Shopify app configuration. It verifies Shopify’s raw-body HMAC, configured shop, and event ID, then reads the canonical order through the existing read-only Admin API. It sends only a pending COD order on `orders/create` or a paid order on `orders/paid`. After internal testing and webhook verification, set `GMAIL_AUTO_SEND_ENABLED=true` only when you are ready for eligible real orders to email customers. Shopify’s own order confirmation emails are not changed. Webhook event IDs and invoice delivery state are retained in encrypted private storage.
 
-**Deployment limitation:** this integration uses the project’s existing Node.js encrypted-file storage and PDF renderer. It is not yet deployable to Cloudflare Workers. Worker deployment requires replacing filesystem session/token/invoice storage and locks with durable bindings (for example D1/R2/KV as appropriate) and validating PDF/font rendering in the Workers runtime. Gmail API uses HTTPS `fetch`, but that alone does not make the portal Worker-compatible. Until that separate migration, use a persistent Node.js host.
+### Vercel and Neon deployment
+
+Connect a Neon PostgreSQL database to the Vercel project and set its pooled connection string as `DATABASE_URL`. Before the first deployment, initialize the schema from a trusted local checkout:
+
+```powershell
+npm run db:setup
+```
+
+The setup command creates `dabbat_encrypted_state`. If local live encrypted files exist and the destination rows are empty, it imports them without overwriting database records. Keep the same `TOKEN_ENCRYPTION_KEY`; losing or changing it makes stored tokens and invoice history unreadable. In Vercel, set `APP_URL` to the permanent production origin and update the Google and Shopify callback/webhook URLs before testing integrations.
+
+Cloudflare Workers remain unsupported because the Node PDF/font runtime has not been validated there. Gmail API uses HTTPS `fetch`, but that alone does not make the complete portal Worker-compatible.
 
 For an interactive local setup that saves your chosen administrator password directly to `.env.local` without displaying it, run:
 
@@ -102,9 +112,9 @@ The portal validates the allowed shop hostname, callback HMAC, timestamp, and si
 
 ## Persistence and invoice behavior
 
-This phase targets **one Node.js server process with durable private disk**, such as a single VM or container. It is not ready for ephemeral or multi-instance serverless hosting. Before that deployment, replace the local encrypted file adapters in `src/lib/server/storage.ts` and `src/lib/server/invoices.ts` with a transactional database, shared rate limiting/session storage, and managed encryption keys. Back up the data and encryption key securely; losing the key prevents reading saved tokens and live history.
+Live mode uses transactional PostgreSQL storage whenever `DATABASE_URL` is set, making sessions, login throttling, OAuth state, tokens, GST settings, invoice snapshots, delivery claims, and webhook idempotency shared across Vercel functions. Payloads remain encrypted with AES-256-GCM before entering PostgreSQL. Back up the database and encryption key securely; losing the key prevents reading saved tokens and live history.
 
-Keep `DATA_DIR` outside the web root and restrict OS filesystem ACLs to the server account, particularly on Windows where POSIX mode bits do not enforce those ACLs. Live data is encrypted; demo history contains only fictional data. Invoice writes use an exclusive lock and atomic replacement. If the process is forcibly terminated during a write, stop the server and verify no other process is using the directory before removing a stale `invoices.lock`, `private.lock`, or `shopify-token.lock`. Never delete live history to solve a numbering problem.
+Without `DATABASE_URL`, local Node deployments retain the encrypted-file adapter. Keep `DATA_DIR` outside the web root and restrict OS filesystem ACLs to the server account, particularly on Windows where POSIX mode bits do not enforce those ACLs. Demo history contains only fictional data. PostgreSQL updates use row transactions and advisory locks; local file writes use exclusive locks and atomic replacement. Never delete live history to solve a numbering problem.
 
 Invoices save immutable order/seller/payment snapshots and one stable number per order. Repeat generation returns the original invoice; later refunds or order edits do not rewrite an issued document. Credit notes, cancellations, and statutory tax configuration remain later-phase work. COD pending and authorized/partially paid states are preserved; a PDF never marks them paid. Gross item amounts, discounts, shipping, and Shopify-provided taxes must reconcile to the total; unsupported additional fees or incomplete billing/line-item data block generation. Bundled PDF fonts support Latin and Devanagari text; unsupported glyphs block issue until a suitable font is added. Mixed-currency and non-two-decimal currencies are rejected by this INR-first phase. Search and history remain available separately from invoice generation.
 

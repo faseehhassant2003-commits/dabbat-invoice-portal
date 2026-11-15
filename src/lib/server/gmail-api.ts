@@ -4,6 +4,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { InvoiceDocument } from "@/components/invoice-document";
 import { sampleInvoices, sampleOrders } from "@/lib/sample-data";
 import type { InvoiceSnapshot } from "@/lib/invoice-core";
+import { gmailApiErrorMessage } from "@/lib/gmail-api-error";
 import { getSeller } from "./seller";
 import { getGmailAccessToken, GMAIL_FROM_ALIAS, GMAIL_OAUTH_ACCOUNT, markGoogleMailTestPassed } from "./google-oauth";
 
@@ -61,7 +62,7 @@ async function sendMessage(to: string, subject: string, text: string, filename: 
   } catch {
     throw new GmailApiDeliveryError("Gmail API could not send the message. Check the connection and try again.");
   }
-  if (!response.ok) throw new GmailApiDeliveryError("Gmail API rejected the message. Check the Gmail connection and verified sender alias.");
+  if (!response.ok) throw new GmailApiDeliveryError(await gmailApiErrorMessage(response));
   try {
     const result = await response.json() as { id?: unknown };
     return typeof result.id === "string" ? result.id : null;

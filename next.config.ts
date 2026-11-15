@@ -11,7 +11,7 @@ const config: NextConfig = {
       { key: "Referrer-Policy", value: "no-referrer" },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
       { key: "Cache-Control", value: "private, no-store, max-age=0" },
-      { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self' https://*.myshopify.com https://admin.shopify.com https://accounts.shopify.com" }
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com https://*.myshopify.com https://admin.shopify.com https://accounts.shopify.com" }
     ] }];
   }
 };

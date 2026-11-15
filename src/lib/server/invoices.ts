@@ -12,6 +12,7 @@ import { getOrder } from "./orders";
 import { getSeller } from "./seller";
 import { assertPdfTextValues } from "@/lib/pdf-fonts";
 import { getGstSettings } from "./gst-settings";
+import { readEncryptedRecord, usesDatabaseStorage, withDatabaseLock, writeEncryptedRecord } from "./database";
 
 type InvoiceStore = { version: 1; snapshots: InvoiceSnapshot[] };
 
@@ -21,9 +22,10 @@ async function access(trustedWebhook = false) {
   if (trustedWebhook && sample) throw new Error("Shopify webhooks are disabled in sample mode.");
   if (!sample && process.env.SHOPIFY_CUSTOMER_DATA_APPROVED !== "true") throw new Error("Customer data access is disabled. Review protected customer data approval in Settings.");
   const config = sample ? null : getAuthConfig();
+  const database = !sample && usesDatabaseStorage();
   const directory = path.join(/* turbopackIgnore: true */ config?.dataDir || path.resolve(/* turbopackIgnore: true */ process.env.DATA_DIR || "data"), sample ? "sample" : "live");
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  return { sample, directory, filename: path.join(/* turbopackIgnore: true */ directory, sample ? "invoices.json" : "invoices.enc.json"), key: config?.encryptionKey };
+  if (!database) await mkdir(directory, { recursive: true, mode: 0o700 });
+  return { sample, database, directory, filename: path.join(/* turbopackIgnore: true */ directory, sample ? "invoices.json" : "invoices.enc.json"), key: config?.encryptionKey };
 }
 type Access = Awaited<ReturnType<typeof access>>;
 
@@ -36,12 +38,29 @@ function sampleSeed(): InvoiceStore {
   }) };
 }
 
+function emptyInvoiceStore(): InvoiceStore {
+  return { version: 1, snapshots: [] };
+}
+
+function validateStore(data: InvoiceStore, sample: boolean): void {
+  if (data.version !== 1 || !Array.isArray(data.snapshots)) throw new Error("Unsupported invoice history format.");
+  if (data.snapshots.some((snapshot) => snapshot.invoice.source !== (sample ? "sample" : "shopify"))) {
+    throw new Error("Invoice data source does not match the portal mode.");
+  }
+}
+
 async function readStore(storage: Access): Promise<InvoiceStore> {
+  if (storage.database) {
+    try {
+      return await readEncryptedRecord("invoice-store", emptyInvoiceStore, (data) => validateStore(data, false));
+    } catch {
+      throw new Error("Invoice history could not be read. Check the database, encryption key, and migration.");
+    }
+  }
   try {
     const text = await readFile(storage.filename, "utf8");
     const data = storage.sample ? JSON.parse(text) as InvoiceStore : decryptJson<InvoiceStore>(text, storage.key!);
-    if (data.version !== 1 || !Array.isArray(data.snapshots)) throw new Error("Unsupported invoice history format.");
-    if (data.snapshots.some((snapshot) => snapshot.invoice.source !== (storage.sample ? "sample" : "shopify"))) throw new Error("Invoice data source does not match the portal mode.");
+    validateStore(data, storage.sample);
     return data;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return storage.sample ? sampleSeed() : { version: 1, snapshots: [] };
@@ -50,6 +69,10 @@ async function readStore(storage: Access): Promise<InvoiceStore> {
 }
 
 async function saveStore(storage: Access, store: InvoiceStore) {
+  if (storage.database) {
+    await writeEncryptedRecord("invoice-store", store);
+    return;
+  }
   const temporary = `${storage.filename}.${randomUUID()}.tmp`;
   const content = storage.sample ? JSON.stringify(store) : encryptJson(store, storage.key!);
   try {
@@ -59,6 +82,7 @@ async function saveStore(storage: Access, store: InvoiceStore) {
 }
 
 async function withWriteLock<T>(storage: Access, callback: () => Promise<T>): Promise<T> {
+  if (storage.database) return withDatabaseLock("invoices", callback);
   const lockfile = path.join(storage.directory, "invoices.lock");
   let lock: Awaited<ReturnType<typeof open>> | null = null;
   for (let attempt = 0; attempt < 30; attempt++) {

@@ -7,6 +7,7 @@ import { requireApiSession } from "./auth";
 import { sendGmailInvoice } from "./gmail-api";
 import { readPrivateStore, updatePrivateStore, type EmailDeliveryRecord } from "./storage";
 import { buildInvoiceEmail } from "@/lib/invoice-email";
+import { getEmailLogo } from "./email-brand";
 
 export class InvoiceEmailSetupError extends Error {}
 export class InvoiceEmailRecipientError extends Error {}
@@ -52,7 +53,10 @@ async function sendSmtp(snapshot: NonNullable<Awaited<ReturnType<typeof getInvoi
       subject: content.subject,
       text: content.text,
       html: content.html,
-      attachments: [{ filename: `Dabbat-${invoiceNumber}.pdf`, content: Buffer.from(pdf), contentType: "application/pdf" }],
+      attachments: [
+        { filename: "dabbat-logo.png", content: getEmailLogo(), contentType: "image/png", cid: "dabbat-logo@dabbat.in", contentDisposition: "inline" },
+        { filename: `Dabbat-${invoiceNumber}.pdf`, content: Buffer.from(pdf), contentType: "application/pdf" },
+      ],
     });
     return result.messageId;
   } catch {

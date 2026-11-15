@@ -24,8 +24,12 @@ test("internal preview is sample marked and MIME contains both text versions and
   assert.match(content.text, /NOT A TAX INVOICE/);
   assert.match(content.html, /NOT A TAX INVOICE/);
   const pdf = Buffer.from("%PDF-1.7\nexample");
-  const mime = Buffer.from(buildInvoiceMime("official@dabbat.in", "support@dabbat.in", content, "invoice.pdf", pdf), "base64url").toString();
-  for (const type of ["multipart/mixed", "multipart/alternative", "text/plain", "text/html", "application/pdf"]) assert.ok(mime.includes(type));
+  const logo = Buffer.from("test-logo-bytes");
+  const mime = Buffer.from(buildInvoiceMime("official@dabbat.in", "support@dabbat.in", content, "invoice.pdf", pdf, logo), "base64url").toString();
+  for (const type of ["multipart/mixed", "multipart/related", "multipart/alternative", "text/plain", "text/html", "image/png", "application/pdf"]) assert.ok(mime.includes(type));
+  assert.ok(content.html.includes('src="cid:dabbat-logo@dabbat.in"'));
+  assert.ok(mime.includes("Content-ID: <dabbat-logo@dabbat.in>"));
+  assert.ok(mime.includes(logo.toString("base64")));
   assert.ok(mime.includes(pdf.toString("base64")));
   assert.ok(mime.includes("Reply-To: support@dabbat.in"));
 });

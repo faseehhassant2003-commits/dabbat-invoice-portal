@@ -7,11 +7,12 @@ import { gmailApiErrorMessage } from "@/lib/gmail-api-error";
 import { getSeller } from "./seller";
 import { getGmailAccessToken, GMAIL_FROM_ALIAS, GMAIL_OAUTH_ACCOUNT, markGoogleMailTestPassed } from "./google-oauth";
 import { buildInvoiceEmail, buildInvoiceMime } from "@/lib/invoice-email";
+import { getEmailLogo } from "./email-brand";
 
 export class GmailApiDeliveryError extends Error {}
 
 async function sendMessage(to: string, content: ReturnType<typeof buildInvoiceEmail>, filename: string, pdf: Buffer): Promise<string | null> {
-  const raw = buildInvoiceMime(to, GMAIL_FROM_ALIAS, content, filename, pdf);
+  const raw = buildInvoiceMime(to, GMAIL_FROM_ALIAS, content, filename, pdf, getEmailLogo());
   let response: Response;
   try {
     response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {

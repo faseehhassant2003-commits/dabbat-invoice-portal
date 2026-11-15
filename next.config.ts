@@ -3,6 +3,7 @@ const config: NextConfig = {
   poweredByHeader: false,
   allowedDevOrigins: process.env.APP_URL ? [new URL(process.env.APP_URL).hostname] : [],
   serverExternalPackages: ["@react-pdf/renderer"],
+  outputFileTracingIncludes: { "/*": ["./public/brand/dabbat-logo.png"] },
   outputFileTracingExcludes: { "/*": ["./data/**/*", "./.qa/**/*", "./.env*"] },
   async headers() {
     return [{ source: "/(.*)", headers: [

@@ -6,6 +6,7 @@ import { getInvoiceSnapshot } from "./invoices";
 import { requireApiSession } from "./auth";
 import { sendGmailInvoice } from "./gmail-api";
 import { readPrivateStore, updatePrivateStore, type EmailDeliveryRecord } from "./storage";
+import { buildInvoiceEmail } from "@/lib/invoice-email";
 
 export class InvoiceEmailSetupError extends Error {}
 export class InvoiceEmailRecipientError extends Error {}
@@ -33,6 +34,7 @@ async function sendSmtp(snapshot: NonNullable<Awaited<ReturnType<typeof getInvoi
   const { InvoiceDocument } = await import("@/components/invoice-document");
   const pdf = await renderToBuffer(InvoiceDocument(snapshot));
   const invoiceNumber = snapshot.invoice.number.replace(/[^a-zA-Z0-9-]/g, "");
+  const content = buildInvoiceEmail(snapshot);
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
@@ -46,8 +48,10 @@ async function sendSmtp(snapshot: NonNullable<Awaited<ReturnType<typeof getInvoi
     const result = await transporter.sendMail({
       from: { name: "Dabbat", address: user },
       to: recipient,
-      subject: `Your Dabbat invoice ${invoiceNumber}`,
-      text: `Hello ${snapshot.order.customer},\n\nPlease find your invoice ${invoiceNumber} for order ${snapshot.order.number} attached.\n\nThank you,\nDabbat`,
+      replyTo: "support@dabbat.in",
+      subject: content.subject,
+      text: content.text,
+      html: content.html,
       attachments: [{ filename: `Dabbat-${invoiceNumber}.pdf`, content: Buffer.from(pdf), contentType: "application/pdf" }],
     });
     return result.messageId;

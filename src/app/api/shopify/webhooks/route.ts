@@ -6,6 +6,7 @@ import { getOrderForWebhook } from "@/lib/server/orders";
 import { validShopifyWebhookHmac } from "@/lib/server/security";
 import { updatePrivateStore } from "@/lib/server/storage";
 import { claimWebhookEvent } from "@/lib/integration-reliability";
+import { automaticInvoicesEnabled } from "@/lib/automatic-invoices";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,7 +74,9 @@ export async function POST(request: Request) {
   const orderId = orderIdValue || (typeof payload.admin_graphql_api_id === "string" ? payload.admin_graphql_api_id.split("/").at(-1) ?? "" : "");
   if (!/^\d{1,30}$/.test(orderId)) return NextResponse.json({ error: "Webhook order identifier is invalid." }, { status: 400, headers });
 
+  let automaticSending = false;
   const claimed = await updatePrivateStore((store) => {
+    automaticSending = automaticInvoicesEnabled(store.automaticInvoicesEnabled, process.env.GMAIL_AUTO_SEND_ENABLED);
     const events = store.shopifyWebhooks ?? [];
     const result = claimWebhookEvent(events, { id: webhookId, topic, orderId, receivedAt: Date.now() });
     store.shopifyWebhooks = events.slice(-5000);
@@ -81,7 +84,7 @@ export async function POST(request: Request) {
   });
   if (claimed === null) return NextResponse.json({ received: true, duplicate: true }, { headers });
 
-  if (process.env.GMAIL_AUTO_SEND_ENABLED !== "true") {
+  if (!automaticSending) {
     await finishWebhook(webhookId, "ignored");
     return NextResponse.json({ received: true, automaticSending: false }, { headers });
   }

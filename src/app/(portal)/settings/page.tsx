@@ -7,6 +7,8 @@ import { getGstSettings } from "@/lib/server/gst-settings";
 import { getGoogleMailStatus } from "@/lib/server/google-oauth";
 import { getAppOrigin } from "@/lib/server/config";
 import { GoogleMailSettings } from "@/components/google-mail-settings";
+import { AutomaticInvoiceSettings } from "@/components/automatic-invoice-settings";
+import { getAutomaticInvoiceSettings } from "@/lib/server/automatic-invoices";
 export const metadata = {title:"Settings"};
 export default async function Settings({
   searchParams,
@@ -16,11 +18,12 @@ export default async function Settings({
   const { google } = await searchParams;
   const authorizationResult = google === "connected" || google === "error" ? google : null;
   const status = await getIntegrationStatus();
-  const [gstSettings, gmail] = await Promise.all([
+  const [gstSettings, gmail, automaticInvoices] = await Promise.all([
     getGstSettings(),
     status.mode === "demo"
       ? Promise.resolve({ configured: false, connected: false, testPassed: false })
       : getGoogleMailStatus(),
+    getAutomaticInvoiceSettings(),
   ]);
 
   return <>
@@ -42,6 +45,7 @@ export default async function Settings({
           <p className="settings-footnote">Your actual seller address must be added before issuing live invoices. GST stays off until you enable it after registration.</p>
         </section>
         <GstSettingsForm initialSettings={gstSettings} demo={status.mode === "demo"}/>
+        <AutomaticInvoiceSettings initialEnabled={automaticInvoices.enabled} unavailableReason={automaticInvoices.unavailableReason}/>
         <GoogleMailSettings
           demo={status.mode === "demo"}
           configured={gmail.configured}

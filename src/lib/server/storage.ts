@@ -56,6 +56,7 @@ export interface PrivateStore {
   emailDeliveries?: EmailDeliveryRecord[];
   shopifyWebhooks?: ShopifyWebhookRecord[];
   gstSettings?: GstSettings;
+  automaticInvoicesEnabled?: boolean;
 }
 const emptyStore = (): PrivateStore => ({ version: 1, sessions: [], oauth: [], loginAttempts: { count: 0, resetAt: 0 } });
 

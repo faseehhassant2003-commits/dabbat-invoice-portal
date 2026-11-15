@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, ExternalLink, Loader2, Mail, ShieldCheck } from "lucide-react";
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function GoogleMailSettings({ demo, configured, connected, testPassed: initialTestPassed, redirectUri, authorizationResult }: Props) {
+  const router = useRouter();
   const [testPassed, setTestPassed] = useState(initialTestPassed);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState("");
@@ -37,6 +39,7 @@ export function GoogleMailSettings({ demo, configured, connected, testPassed: in
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "The Gmail API test failed.");
       setTestPassed(true);
+      router.refresh();
       setNotice("Sample invoice sent to official@dabbat.in. No customer email was sent.");
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "The Gmail API test failed.");
@@ -53,7 +56,7 @@ export function GoogleMailSettings({ demo, configured, connected, testPassed: in
       <div><dt>Send-as alias</dt><dd>support@dabbat.in</dd></div>
       <div><dt>Authorized redirect URI</dt><dd><code>{redirectUri}</code></dd></div>
     </dl>
-    <p className="settings-footnote">In Google Workspace, verify support@dabbat.in as a send-as alias on official@dabbat.in before connecting. Google’s login hint does not force the account: check the account shown during consent. {testPassed ? "The Gmail API test passed; manual invoice emails can now use OAuth. Automatic sending remains off." : "Run the internal test before enabling Gmail API invoice sends."}</p>
+    <p className="settings-footnote">In Google Workspace, verify support@dabbat.in as a send-as alias on official@dabbat.in before connecting. Google’s login hint does not force the account: check the account shown during consent. {testPassed ? "The Gmail API test passed. Manage automatic generation and delivery under Automatic invoices." : "Run the internal test before enabling Gmail API invoice sends."}</p>
     <form action="/api/google/connect" method="post"><button className="button primary" disabled={demo || !configured}><ExternalLink size={16}/>{connected ? "Reconnect Google Workspace" : "Connect Google Workspace"}</button></form>
     {!configured && !demo && <p className="action-caption">Add GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET to the server environment first.</p>}
     {demo && <p className="action-caption">Google email is disabled in sample mode.</p>}

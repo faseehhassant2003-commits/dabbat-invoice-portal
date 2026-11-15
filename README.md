@@ -1,5 +1,11 @@
 # Dabbat Invoice Portal
 
+## Automatic invoices
+
+Settings → Automatic invoices controls generation and customer email delivery for future eligible Shopify events. It is off by default. Turning it on requires a connected Shopify app with approved customer data access, connected and internally tested Gmail, and both `ORDERS_CREATE` and `ORDERS_PAID` subscriptions pointing exactly to `{APP_URL}/api/shopify/webhooks`. Configure these subscriptions in the existing Shopify app; the portal verifies them without modifying the store.
+
+The choice is saved in encrypted shared storage. A saved setting overrides the legacy `GMAIL_AUTO_SEND_ENABLED` environment variable, including when the saved choice is off. COD invoices are generated and sent for pending COD order-created events; prepaid orders wait for a paid event. Existing invoice and delivery protections remain in place. Turning automation off keeps saved invoices and does not cancel an email already being processed. Earlier orders are not bulk-sent.
+
 A private external invoice workspace for Dabbat, built with Next.js App Router, TypeScript, Tailwind CSS, Shopify GraphQL Admin API `2026-10`, and `@react-pdf/renderer`. The first phase runs entirely with explicitly labeled fictional orders. It never reads the connected Shopify account or changes the store, theme, Razorpay, or Shiprocket.
 
 ## Preview locally
